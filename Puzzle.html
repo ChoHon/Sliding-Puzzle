@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+    <style>
+      table, td {
+        margin: 0px; padding: 0px;
+        border-collapse: collapse;
+        float: left;
+      }
+      img {
+        display: block;
+      }
+      input[type=button] {
+        margin: 0  50px 120px 50px;
+        width: 240px; height: 120px;
+        font-size: 3em;
+      }
+    </style>
+    <script>
+      var block = document.getElementsByClassName("block");
+      var suffle = document.getElementById("suffle");
+      var movable_list = [[0, 0, 0],
+                          [0, 0, 1],
+                          [0, 1, -1]]; //이동 가능한 블록 배열
+      var empty_block = 8;
+
+      function init() {
+        for (var i = 0; i < block.length; i++)
+          block[i].onclick = move;
+
+        suffle.onclick = suffle;
+      }
+
+      function move() {//블록 이동 함수
+        var y = parseInt(this.id) % 3;
+        var x = Math.floor(parseInt(this.id) / 3);
+        var temp;
+
+        if (movable_list[x][y] == 1) {
+          temp = block[empty_block].src;
+          block[empty_block].src = this.src;
+          this.src = temp;
+
+          update_movable_list(x, y);
+          empty_block = this.id;
+        }
+      }
+
+      function update_movable_list(x, y) {//이동 가능한 블록 배열 업데이트
+        for (var i = 0; i < 3; i++) {
+          for (var j = 0; j < 3; j++)
+            movable_list[i][j] = 0;
+        }
+
+        movable_list[x][y] = -1;
+
+        if (x == 0) {
+          movable_list[x + 1][y] = 1;
+          if (y != 2) movable_list[x][y + 1] = 1;
+          if (y != 0) movable_list[x][y - 1] = 1;
+        }
+        else if (x == 2) {
+          movable_list[x-1][y] = 1;
+          if (y != 2) movable_list[x][y + 1] = 1;
+          if (y != 0) movable_list[x][y - 1] = 1;
+        }
+        else {
+          movable_list[x + 1][y] = 1;
+          movable_list[x-1][y] = 1;
+          if (y != 2) movable_list[x][y + 1] = 1;
+          if (y != 0) movable_list[x][y - 1] = 1;
+        }
+      }
+
+      function suffle() {
+        console.log("김현진");
+      }
+
+
+    </script>
+  </head>
+  <body onload = "init()">
+    <table>
+      <tr>
+        <td><img src="img/img_00.jpg" class="block" id="0"></td>
+        <td><img src="img/img_01.jpg" class="block" id="1"></td>
+        <td><img src="img/img_02.jpg" class="block" id="2"></td>
+      </tr>
+      <tr>
+        <td><img src="img/img_03.jpg" class="block" id="3"></td>
+        <td><img src="img/img_04.jpg" class="block" id="4"></td>
+        <td><img src="img/img_05.jpg" class="block" id="5"></td>
+      </tr>
+      <tr>
+        <td><img src="img/img_06.jpg" class="block" id="6"></td>
+        <td><img src="img/img_07.jpg" class="block" id="7"></td>
+        <td><img src="img/img_08.jpg" class="block" id="8"></td>
+      </tr>
+    </table>
+    <form>
+      <input type="button" value="섞기" id="suffle">
+    </form>
+  </body>
+</html>
