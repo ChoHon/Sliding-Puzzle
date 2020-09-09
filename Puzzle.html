@@ -1,57 +1,87 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
   <head>
-    <meta charset="utf-8">
-    <title></title>
+    <meta charset="utf-8" />
+    <title>Sliding Puzzle</title>
     <style>
-      table, td {
-        margin: 0px; padding: 0px;
+      table,
+      td {
+        margin: 0px;
+        padding: 0px;
         border-collapse: collapse;
+        text-align: center;
+      }
+
+      #puzzle {
         float: left;
       }
+
       img {
         display: block;
       }
-      input[type=button] {
-        margin: 0  50px 120px 50px;
-        width: 240px; height: 120px;
+
+      button {
+        margin: 60px 50px 60px 50px;
+        width: 240px;
+        height: 120px;
         font-size: 3em;
+      }
+
+      .menu {
+        text-align: center;
+        font-size: 2em;
       }
     </style>
     <script>
+      var BIG_NUMBER = 1000;
+      var PUZZLE_SIZE = 3;
       var block = document.getElementsByClassName("block");
-      var suffle = document.getElementById("suffle");
-      var movable_list = [[0, 0, 0],
-                          [0, 0, 1],
-                          [0, 1, -1]]; //이동 가능한 블록 배열
+      var movable_list = [
+        [0, 0, 0],
+        [0, 0, 1],
+        [0, 1, -1],
+      ]; //이동 가능한 블록 배열
       var empty_block = 8;
+      var pre_empty_block = null;
+      var num_moved = 0;
 
       function init() {
         for (var i = 0; i < block.length; i++)
-          block[i].onclick = move;
+          block[i].addEventListener("click", s_move);
 
-        suffle.onclick = suffle;
+        suffle();
       }
 
-      function move() {//블록 이동 함수
-        var y = parseInt(this.id) % 3;
-        var x = Math.floor(parseInt(this.id) / 3);
+      function s_move() {
+        move(this.id, false);
+        num_moved++;
+        count_moved();
+
+        is_finish();
+      }
+
+      function move(id) {
+        //블록 이동 함수
+        var y = parseInt(id) % 3;
+        var x = Math.floor(parseInt(id) / 3);
+
+        if (movable_list[x][y] != 1) return;
+
+        var movable = document.getElementById(id);
         var temp;
 
-        if (movable_list[x][y] == 1) {
-          temp = block[empty_block].src;
-          block[empty_block].src = this.src;
-          this.src = temp;
+        temp = block[empty_block].src;
+        block[empty_block].src = movable.src;
+        movable.src = temp;
 
-          update_movable_list(x, y);
-          empty_block = this.id;
-        }
+        update_movable_list(x, y);
+        empty_block = id;
       }
 
-      function update_movable_list(x, y) {//이동 가능한 블록 배열 업데이트
-        for (var i = 0; i < 3; i++) {
-          for (var j = 0; j < 3; j++)
-            movable_list[i][j] = 0;
+      function update_movable_list(x, y) {
+        //이동 가능한 블록 배열 업데이트
+        for (var i = 0; i < PUZZLE_SIZE; i++) {
+          for (var j = 0; j < PUZZLE_SIZE; j++) movable_list[i][j] = 0;
         }
 
         movable_list[x][y] = -1;
@@ -60,47 +90,103 @@
           movable_list[x + 1][y] = 1;
           if (y != 2) movable_list[x][y + 1] = 1;
           if (y != 0) movable_list[x][y - 1] = 1;
-        }
-        else if (x == 2) {
-          movable_list[x-1][y] = 1;
+        } else if (x == 2) {
+          movable_list[x - 1][y] = 1;
           if (y != 2) movable_list[x][y + 1] = 1;
           if (y != 0) movable_list[x][y - 1] = 1;
-        }
-        else {
+        } else {
           movable_list[x + 1][y] = 1;
-          movable_list[x-1][y] = 1;
+          movable_list[x - 1][y] = 1;
           if (y != 2) movable_list[x][y + 1] = 1;
           if (y != 0) movable_list[x][y - 1] = 1;
         }
+      }
+
+      function is_finish() {
+        var finish = true;
+        for (var i = 0; i < PUZZLE_SIZE * PUZZLE_SIZE; i++) {
+          if (block[i].id != block[i].src[block[0].src.length - 5])
+            finish = false;
+        }
+
+        if (finish == true) alert("성공! 움직인 횟수 : " + num_moved);
+      }
+
+      function count_moved() {
+        var moved = document.getElementById("moved");
+        moved.innerHTML = parseInt(moved.innerHTML) + 1;
       }
 
       function suffle() {
-        console.log("김현진");
+        var moved = document.getElementById("moved");
+        var movable_array;
+        var ran;
+
+        for (var k = 0; k < BIG_NUMBER; k++) {
+          movable_array = [];
+          for (var i = 0; i < PUZZLE_SIZE; i++) {
+            for (var j = 0; j < PUZZLE_SIZE; j++) {
+              if (movable_list[i][j] == 1) movable_array.push(i * 3 + j);
+            }
+          }
+
+          ran = Math.floor(Math.random() * movable_array.length);
+          move(movable_array[ran]);
+          num_moved = 0;
+          moved.innerHTML = 0;
+        }
       }
-
-
     </script>
   </head>
-  <body onload = "init()">
-    <table>
+  <body onload="init()">
+    <table id="puzzle">
       <tr>
-        <td><img src="img/img_00.jpg" class="block" id="0"></td>
-        <td><img src="img/img_01.jpg" class="block" id="1"></td>
-        <td><img src="img/img_02.jpg" class="block" id="2"></td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_00.jpg" class="block" id="0" />
+        </td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_01.jpg" class="block" id="1" />
+        </td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_02.jpg" class="block" id="2" />
+        </td>
       </tr>
       <tr>
-        <td><img src="img/img_03.jpg" class="block" id="3"></td>
-        <td><img src="img/img_04.jpg" class="block" id="4"></td>
-        <td><img src="img/img_05.jpg" class="block" id="5"></td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_03.jpg" class="block" id="3" />
+        </td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_04.jpg" class="block" id="4" />
+        </td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_05.jpg" class="block" id="5" />
+        </td>
       </tr>
       <tr>
-        <td><img src="img/img_06.jpg" class="block" id="6"></td>
-        <td><img src="img/img_07.jpg" class="block" id="7"></td>
-        <td><img src="img/img_08.jpg" class="block" id="8"></td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_06.jpg" class="block" id="6" />
+        </td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_07.jpg" class="block" id="7" />
+        </td>
+        <td>
+          <img src="./img/Sliding-Puzzle/img_08.jpg" class="block" id="8" />
+        </td>
       </tr>
     </table>
     <form>
-      <input type="button" value="섞기" id="suffle">
+      <table class="menu">
+        <tr>
+          <td><button type="button" onclick="suffle()">섞기</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span>움직인 횟수</span>
+            <br />
+            <span id="moved">0</span>
+          </td>
+        </tr>
+      </table>
     </form>
   </body>
 </html>
