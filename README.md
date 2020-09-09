@@ -1,3 +1,3 @@
 # Sliding-Puzzle
 Sliding puzzle with Javascript
-Sliding puzzle solution algorithm(based A*) with Python
+Sliding puzzle solution algorithm(based A*) with Python and C++
