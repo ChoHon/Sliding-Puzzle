@@ -1,0 +1,813 @@
+# include <iostream>
+# include <stdlib.h>
+# include <vector>
+# include <ctime>
+# include <string.h>
+# include <algorithm>
+# include <queue>
+
+# pragma warning(disable : 4996)
+// # define INFINITY 1000
+using namespace std;
+
+typedef unsigned int ui;
+short Size;
+
+struct Point {
+	short x;
+	short y;
+
+	Point(short x = 0, short y = 0)
+	{
+		this->x = x;
+		this->y = y;
+	}
+
+	bool operator !=(const Point &Other) const
+	{
+		return (x != Other.x || y != Other.y);
+	}
+
+	void Print()
+	{
+		printf("(%d, %d) ", x, y);
+	}
+};
+
+struct NodeInfo {
+	ui id;
+	ui parent;
+	Point move;
+};
+
+struct Node {
+	short board[4][4];
+	Point blank;
+	NodeInfo nodeInfo;
+	short f;
+	short g;
+
+	Node(short (*bd)[4], Point blk, Point move, ui id, ui parent, short f = 0, short g = 0)
+	{
+		CopyBoard(board, bd);
+		blank = blk;
+		nodeInfo.move = move;
+		nodeInfo.id = id;
+		nodeInfo.parent = parent;
+		this->f = f;
+		this->g = g;
+	}
+
+	bool operator >(const Node& other) const
+	{
+		return f > other.f;
+	}
+
+	void CopyBoard(short (*dst)[4], const short (*src)[4])
+	{
+		for (short i = 0; i < Size; ++i)
+		{
+			for (short j = 0; j < Size; ++j)
+			{
+				dst[i][j] = src[i][j];
+			}
+		}
+	}
+};
+
+class Solver {
+private:
+	short board[4][4];
+	short   size;
+	ui      nodeCount;
+	bool    isSolved;
+
+	Point blank;
+	Point lastMove;
+	Point UP;
+	Point DOWN;
+	Point LEFT;
+	Point RIGHT;
+
+	vector<Point> moveList;
+
+	void GetBlank();
+	void MoveTile(short x, short y, Point move, short (*board)[4]);
+	void Print(short (*board)[4]);
+	void GetBoard(short* strBoard);
+	short GetHeuristic(short (*board)[4]);
+	short GetDistance(short *, short md, short k);
+	bool isValidMove(short x, short y, Point move);
+	vector<Point> GetValidMove(short x, short y);
+	void MakePath(vector<NodeInfo> &vni, const NodeInfo &ni);
+	void ExpandNode(priority_queue<Node, vector<Node>, greater<Node>> &open, const Node &pNode);
+	void ExpandNodeBFS(queue<Node> &open, const Node &pNode, vector<NodeInfo> &closed);
+	void PrintPath();
+	bool isFind(short (*bd)[4]);
+
+	short IdaStar(short, short);
+	void dfs(short depth, short maxDepth);
+	void AStar();
+	void bfs();
+
+public:
+	Solver(short size, short *board);
+	~Solver();
+
+	void SetGame(short* board);
+	void ASTAR();
+	void IDAStar();
+	void DFS();
+	void BFS();
+};
+
+Solver::Solver(short size, short *board)
+{
+	UP = Point(0, -1);
+	DOWN = Point(0, 1);
+	LEFT = Point(-1, 0);
+	RIGHT = Point(1, 0);
+	this->size = size;
+	Size = size;
+	SetGame(board);
+}
+
+Solver::~Solver()
+{
+}
+
+void Solver::SetGame(short* strBoard)
+{
+	nodeCount = 0;
+	isSolved = false;
+	lastMove = Point();
+
+	GetBoard(strBoard);
+	GetBlank();
+	Print(this->board);
+}
+
+void Solver::GetBoard(short* sBoard)
+{
+	for (short y = 0; y < size; ++y)
+	{
+		for (short x = 0; x < size; ++x)
+		{
+			board[y][x] = sBoard[x + y * size];
+		}
+	}
+}
+
+void Solver::Print(short (*board)[4])
+{
+	for (short y = 0; y < size; ++y)
+	{
+		for (short x = 0; x < size; ++x)
+		{
+			printf("%d ", board[y][x]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+}
+
+void Solver::PrintPath()
+{
+	for (auto x : moveList)
+	{
+		x.Print();
+	}
+	moveList.clear();
+	printf("\n");
+}
+
+void Solver::GetBlank()
+{
+	for (short y = 0; y < size; ++y)
+	{
+		for (short x = 0; x < size; ++x)
+		{
+			if (board[y][x] == 0)
+			{
+				blank.x = x;
+				blank.y = y;
+			}
+		}
+	}
+}
+
+short Solver::GetHeuristic(short (*board)[4])
+{
+	short md_3[9][9] = { {0, 0, 0, 0, 0, 0, 0, 0, 0},  // 0
+						{0, 1, 2, 1, 2, 3, 2, 3, 4},  // 1
+						{1, 0, 1, 2, 1, 2, 3, 2, 3},  // 2
+						{2, 1, 0, 3, 2, 1, 4, 3, 2},  // 3
+						{1, 2, 3, 0, 1, 2, 1, 2, 3},  // 4
+						{2, 1, 2, 1, 0, 1, 2, 1, 2},  // 5
+						{3, 2, 1, 2, 1, 0, 3, 2, 1},  // 6
+						{2, 3, 4, 1, 2, 3, 0, 1, 2},  // 7
+						{3, 2, 3, 2, 1, 2, 1, 0, 1} }; // 8
+
+	short md_4[16][16] = { {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},  // 0
+						  {0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6},  // 1
+						  {1, 0, 1, 2, 2, 1, 2, 3, 3, 2, 3, 4, 4, 3, 4, 5},  // 2
+						  {2, 1, 0, 1, 3, 2, 1, 2, 4, 3, 2, 3, 5, 4, 3, 4},  // 3
+						  {3, 2, 1, 0, 4, 3, 2, 1, 5, 4, 3, 2, 6, 5, 4, 3},  // 4
+						  {1, 2, 3, 4, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5},  // 5
+						  {2, 1, 2, 3, 1, 0, 1, 2, 2, 1, 2, 3, 3, 2, 3, 4},  // 6
+						  {3, 2, 1, 2, 2, 1, 0, 1, 3, 2, 1, 2, 4, 3, 2, 3},  // 7
+						  {4, 3, 2, 1, 3, 2, 1, 0, 4, 3, 2, 1, 5, 4, 3, 2},  // 8
+						  {2, 3, 4, 5, 1, 2, 3, 4, 0, 1, 2, 3, 1, 2, 3, 4},  // 9
+						  {3, 2, 3, 4, 2, 1, 2, 3, 1, 0, 1, 2, 2, 1, 2, 3},  // 10
+						  {4, 3, 2, 3, 3, 2, 1, 2, 2, 1, 0, 1, 3, 2, 1, 2},  // 11
+						  {5, 4, 3, 2, 4, 3, 2, 1, 3, 2, 1, 0, 4, 3, 2, 1},  // 12
+						  {3, 4, 5, 6, 2, 3, 4, 5, 1, 2, 3, 4, 0, 1, 2, 3},  // 13
+						  {4, 3, 4, 5, 3, 2, 3, 4, 2, 1, 2, 3, 1, 0, 1, 2},  // 14
+						  {5, 4, 3, 4, 4, 3, 2, 3, 3, 2, 1, 2, 2, 1, 0, 1} }; // 15
+
+	short md = 0;
+	short x, y;
+
+	for (y = 0; y < size; ++y)
+	{
+		for (x = 0; x < size; ++x)
+		{
+			if (size == 3)
+			{
+				md += md_3[board[y][x]][x + y * size];
+			}
+			else
+			{
+				md += md_4[board[y][x]][x + y * size];
+			}
+
+		}
+	}
+
+	short i, j;
+	short temp[4];
+
+	for (i = 0, x = 1; i < size; ++i, ++x)
+	{
+		for (j = 0; j < size; ++j)
+		{
+			temp[j] = board[i][j];
+		}
+		short k = 0;
+		for (y = 0; y < size - k; ++y)
+		{
+			if (temp[y] > size * x || temp[y] == 0 || temp[y] <= size * (x - 1))
+			{
+				memmove(temp + y, temp + y + 1, sizeof(short) * (size - y - 1));
+				k++;
+				y--;
+			}
+		}
+		md = GetDistance(temp, md, size - k);
+	}
+
+	for (i = 0, x = 1; i < size; ++i, ++x)
+	{
+		for (j = 0; j < size; ++j)
+		{
+			temp[j] = board[j][i];
+		}
+		short k = 0;
+		for (y = 0; y < size - k; ++y)
+		{
+			if (temp[y] == x || temp[y] == x + size || temp[y] == x + size * 2 or temp[y] == x + size * 3)
+			{
+				continue;
+			}
+			else
+			{
+				memmove(temp + y, temp + y + 1, sizeof(short) * (size - y - 1));
+				k++;
+				y--;
+			}
+		}
+		md = GetDistance(temp, md, size - k);
+	}
+	return md;
+}
+
+short Solver::GetDistance(short *row, short md, short nums)
+{
+	if (nums > 1)
+	{
+		if (nums == 2)
+		{
+			if (row[0] > row[1])
+				md += 2;
+		}
+		else if (nums == 3)
+		{
+			if (row[0] > row[1] || row[0] > row[2])
+				md += 2;
+			if (row[1] > row[2])
+				md += 2;
+		}
+		else if (nums == 4)
+		{
+			if (row[0] > row[1] || row[0] > row[2] || row[0] > row[3])
+				md += 2;
+			if (row[1] > row[2] || row[1] > row[3])
+				md += 2;
+			if (row[2] > row[3])
+				md += 2;
+		}
+	}
+	return md;
+}
+
+bool Solver::isValidMove(short x, short y, Point move)
+{
+	x += move.x;
+	y += move.y;
+	return (x >= 0 && x < size && y >= 0 && y < size);
+}
+
+vector<Point> Solver::GetValidMove(short x, short y)
+{
+	Point moves[] = { LEFT, UP, RIGHT, DOWN };
+	vector<Point> validMoves;
+	for (short i = 0; i < sizeof(moves) / sizeof(moves[0]); ++i)
+	{
+		if (moves[i] != lastMove)
+		{
+			if (isValidMove(x, y, moves[i]))
+			{
+				validMoves.push_back(moves[i]);
+			}
+		}
+	}
+	return validMoves;
+}
+
+void Solver::MoveTile(short x, short y, Point move, short (*board)[4])
+{
+	short dx = move.x;
+	short dy = move.y;
+	board[y][x] = board[y + dy][x + dx];
+	board[y + dy][x + dx] = 0;
+	blank = Point(x + dx, y + dy);
+}
+
+short Solver::IdaStar(short depth, short maxDepth)
+{
+	short h, f, min;
+	Point move;
+	vector<Point> moves;
+
+	nodeCount += 1;
+	h = GetHeuristic(board);
+	f = depth + h;
+	if (f > maxDepth)
+	{
+		return f;
+	}
+
+	if (h == 0)
+	{
+		Print(board);
+		isSolved = true;
+		return f;
+	}
+
+	min = 1000;
+	moves = GetValidMove(blank.x, blank.y);
+	while (!moves.empty())
+	{
+		move = moves.back();
+		moves.pop_back();
+		MoveTile(blank.x, blank.y, move, board);
+		lastMove = Point(-move.x, -move.y);
+		f = IdaStar(depth + 1, maxDepth);
+		MoveTile(blank.x, blank.y, Point(-move.x, -move.y), board);
+		if (f < min)
+		{
+			min = f;
+		}
+		if (isSolved)
+		{
+			moveList.push_back(move);
+			return min;
+		}
+	}
+
+	return min;
+}
+
+void Solver::IDAStar()
+{
+	time_t start, end;
+	short h, depth;
+	ui totalCount = 0;
+
+	h = GetHeuristic(board);
+	depth = h;
+	start = clock();
+	while (true)
+	{
+		lastMove = Point();
+		nodeCount = -1;
+		depth = IdaStar(0, depth);
+		end = clock();
+		totalCount += nodeCount;
+		printf("Depth = %d, Node Count = %8u, Total Count = %10u, time = %6.2f\n",
+			h, nodeCount, totalCount, (end - start) / 1000.);
+		if (isSolved)
+		{
+			printf("Total Node Count = %u, shortest path length = %d, time = %.2f\n",
+				totalCount, depth, (end - start) / 1000.);
+			reverse(moveList.begin(), moveList.end());
+			PrintPath();
+			return;
+		}
+		h = depth;
+	}
+}
+
+void Solver::MakePath(vector<NodeInfo> &vni, const NodeInfo &ni)
+{
+	NodeInfo temp, info = ni;
+	if (!moveList.empty()) moveList.clear();
+	moveList.push_back(ni.move);
+	while (!vni.empty())
+	{
+		temp = vni.back();
+		if (temp.id == info.parent)
+		{
+			moveList.push_back(temp.move);
+			info = temp;
+		}
+		vni.pop_back();
+	}
+	reverse(moveList.begin(), moveList.end());
+	printf("Shortest path length = %d\n", moveList.size());
+}
+
+int cnt = 0;
+void Solver::ExpandNode(priority_queue<Node, vector<Node>, greater<Node>> &open, const Node &pNd)
+{
+	Point None(0, 0);
+	Node pNode = pNd;
+	Point blk = pNode.blank;
+	Point p = pNode.nodeInfo.move;
+
+	lastMove = Point(-p.x, -p.y);
+	vector<Point> moves = GetValidMove(blk.x, blk.y);
+	for(auto move : moves)
+	{
+		MoveTile(blk.x, blk.y, move, pNode.board);
+		nodeCount += 1;
+		short h = GetHeuristic(pNode.board);
+		short g = pNode.g + 1;
+		Node node(pNode.board, blank, move, nodeCount, pNode.nodeInfo.id, g + h, g);
+		open.push(node);
+		MoveTile(blank.x, blank.y, Point(-move.x, -move.y), pNode.board);
+	}
+}
+
+void Solver::AStar()
+{
+	time_t start = clock();
+	ui showInfo = 10;
+	short g = 0;
+	short h = GetHeuristic(board);
+	short f = g + h;
+	printf("h = %d\n", h);
+
+	nodeCount = 0;
+	ui parent = 0;
+	Node node(board, blank, Point(0, 0), nodeCount, parent, f, g);
+	vector<NodeInfo> closed;
+	priority_queue<Node, vector<Node>, greater<Node>> open;
+
+	ExpandNode(open, node);
+	while (!open.empty())
+	{
+		node = open.top();
+		open.pop();
+
+		if (nodeCount > showInfo || node.f == node.g)
+		{
+			printf("f = %d, g = %2d, Node Count = %8u, time = %6.2f\n", node.f, node.g, nodeCount, (clock() - start) / 1000.);
+			if (showInfo < 10000000) showInfo *= 10;
+			else showInfo += 10000000;
+		}
+
+		if (node.f == node.g)
+		{
+			printf("Open List = %u, Close List = %u, Total maked node = %u\n", open.size(), closed.size(), nodeCount);
+			Print(node.board);
+			MakePath(closed, node.nodeInfo);
+			return;
+		}
+
+		closed.push_back(node.nodeInfo);
+		ExpandNode(open, node);
+	}
+	// http://hochulshin.com/cpp-priority-queue/
+	// https://en.cppreference.com/w/cpp/container/priority_queue
+}
+
+void Solver::ASTAR()
+{
+	time_t start = clock();
+	AStar();
+	printf("time = %.2f\n", (clock() - start) / 1000.);
+	PrintPath();
+}
+
+bool Solver::isFind(short (*bd)[4])
+{
+	for(short y = 0, i = 1; y < size; ++y)
+	{
+		for(short x = 0; x < size; ++x, ++i)
+		{
+			if(i < size * size && i != bd[y][x])
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+void Solver::dfs(short depth, short maxDepth)
+{
+	Point move;
+	vector<Point> moves;
+
+	nodeCount += 1;
+	if (isFind(this->board))
+	{
+		isSolved = true;
+		Print(this->board);
+		return;
+	}
+	
+	if(depth < maxDepth && !isSolved)
+	{
+		moves = GetValidMove(blank.x, blank.y);
+		while (!moves.empty())
+		{
+			move = moves.back();
+			moves.pop_back();
+			MoveTile(blank.x, blank.y, move, board);
+			lastMove = Point(-move.x, -move.y);
+			dfs(depth + 1, maxDepth);
+			MoveTile(blank.x, blank.y, Point(-move.x, -move.y), board);
+			if (isSolved)
+			{
+				moveList.push_back(move);
+				return;
+			}
+		}
+	}
+}
+
+void Solver::DFS()
+{
+	time_t start, end;
+	ui totalCount = 0;
+	short maxDepth = GetHeuristic(board);
+
+	start = clock();
+	for(; maxDepth < 1000; maxDepth += 2)
+	//for(maxDepth = 1; maxDepth < 1000; ++maxDepth)
+	{
+		lastMove = Point();
+		nodeCount = -1;
+		dfs(0, maxDepth);
+		end = clock();
+		totalCount += nodeCount;
+		printf("Depth = %d, Node Count = %8u, Total Count = %10u, time = %6.2f\n",
+			maxDepth, nodeCount, totalCount, (end - start) / 1000.);
+		if (isSolved)
+		{
+			printf("Total Node Count = %u, shortest path length = %d, time = %.2f\n",
+				totalCount, maxDepth, (end - start) / 1000.);
+			reverse(moveList.begin(), moveList.end());
+			PrintPath();
+			return;
+		}
+	}
+}
+
+void Solver::ExpandNodeBFS(queue<Node> &open, const Node &pNd, vector<NodeInfo> &closed)
+{
+	Node pNode = pNd;
+	Point blk = pNode.blank;
+	Point p = pNode.nodeInfo.move;
+
+	lastMove = Point(-p.x, -p.y);
+	vector<Point> moves = GetValidMove(blk.x, blk.y);
+	for(auto move : moves)
+	{
+		MoveTile(blk.x, blk.y, move, pNode.board);
+		nodeCount += 1;
+		Node node(pNode.board, blank, move, nodeCount, pNode.nodeInfo.id, 0, pNode.g + 1);
+		if (isFind(pNode.board))
+		{
+			isSolved = true;
+			open.front() = node;
+			return;
+		}
+		open.push(node);
+		MoveTile(blank.x, blank.y, Point(-move.x, -move.y), pNode.board);
+	}
+}
+
+void Solver::bfs()
+{
+	time_t start = clock();
+	ui showInfo = 10;
+	nodeCount = 0;
+	ui parent = 0;
+	Node node(board, blank, Point(0, 0), nodeCount, parent, 0, 0);
+	vector<NodeInfo> closed;
+	queue<Node> open;
+
+	ExpandNodeBFS(open, node, closed);
+	while (!open.empty())
+	{
+		node = open.front();
+		open.pop();
+
+		if (nodeCount > showInfo || isSolved)
+		{
+			printf("Depth = %2d, Open = %10u, Clocsed = %10u , time = %6.2f\n", node.g, open.size(), closed.size(), (clock() - start) / 1000.);
+			if (showInfo < 100000000) showInfo *= 10;
+			else showInfo += 100000000;
+		}
+
+		if (isSolved)
+		{
+			printf("depth = %d, Open List = %u, Close List = %u, Total maked node = %u\n", node.g, open.size(), closed.size(), nodeCount);
+			Print(node.board);
+			MakePath(closed, node.nodeInfo);
+			return;
+		}
+
+		closed.push_back(node.nodeInfo);
+		ExpandNodeBFS(open, node, closed);
+	}
+}
+
+void Solver::BFS()
+{
+	time_t start = clock();
+	bfs();
+	printf("time = %.2f\n", (clock() - start) / 1000.);
+	PrintPath();
+}
+
+int main()
+{
+	short puzzle[16] = { 0, };
+	short size;
+	// https://www.geeksforgeeks.org/check-instance-15-puzzle-solvable/
+
+	while (size = 1)
+	{
+		while (size != 0 && size != 3 && size != 4)
+		{
+			printf("Input board size(8 puzzle : 3, 15 puzzle : 4, end = 0)\n");
+			scanf("%d", &size);
+			if (size == 0) return 0;
+		}
+
+		printf("Input puzzle data\n");
+		for (int i = 0; i < size * size; ++i)
+		{
+			scanf("%d", &puzzle[i]);
+		}
+		printf("\n===== A Star Algotithm =====\n");
+		Solver sol((short)(size), puzzle);
+		sol.ASTAR();
+
+		printf("\n===== IDA Star Algiorithm =====\n");
+		sol.SetGame(puzzle);
+		sol.IDAStar();
+		
+		if(size == 3)
+		{
+			printf("\n===== DFS Algiorithm =====\n");
+			sol.SetGame(puzzle);
+			sol.DFS();
+	
+			printf("\n===== BFS Algiorithm =====\n");
+			sol.SetGame(puzzle);
+			sol.BFS();
+			printf("\n\n");
+		}
+	}
+
+	return 0;
+}
+
+/*
+// C++ program to check if a given instance of N*N-1 
+// puzzle is solvable or not 
+#include <iostream> 
+#define N 4 
+using namespace std; 
+  
+// A utility function to count inversions in given 
+// array 'arr[]'. Note that this function can be 
+// optimized to work in O(n Log n) time. The idea 
+// here is to keep code small and simple. 
+int getInvCount(int arr[]) 
+{ 
+    int inv_count = 0; 
+    for (int i = 0; i < N * N - 1; i++) 
+    { 
+        for (int j = i + 1; j < N * N; j++) 
+        { 
+            // count pairs(i, j) such that i appears 
+            // before j, but i > j. 
+            if (arr[j] && arr[i] && arr[i] > arr[j]) 
+                inv_count++; 
+        } 
+    } 
+    return inv_count; 
+} 
+  
+// find Position of blank from bottom 
+int findXPosition(int puzzle[N][N]) 
+{ 
+    // start from bottom-right corner of matrix 
+    for (int i = N - 1; i >= 0; i--) 
+        for (int j = N - 1; j >= 0; j--) 
+            if (puzzle[i][j] == 0) 
+                return N - i; 
+} 
+  
+// This function returns true if given 
+// instance of N*N - 1 puzzle is solvable 
+bool isSolvable(int puzzle[N][N]) 
+{ 
+    // Count inversions in given puzzle 
+    int invCount = getInvCount((int*)puzzle); 
+  
+    // If grid is odd, return true if inversion 
+    // count is even. 
+    if (N & 1) 
+        return !(invCount & 1); 
+  
+    else     // grid is even 
+    { 
+        int pos = findXPosition(puzzle); 
+        if (pos & 1) 
+            return !(invCount & 1); 
+        else
+            return invCount & 1; 
+    } 
+} 
+  
+//Driver program to test above functions 
+int main() 
+{ 
+  
+    int puzzle[N][N] = 
+    { 
+        {12, 1, 10, 2}, 
+        {7, 11, 4, 14}, 
+        {5, 0, 9, 15}, // Value 0 is used for empty space 
+        {8, 13, 6, 3}, 
+    }; 
+    
+    int puzzle[N][N] = {{1, 8, 2}, 
+                    {0, 4, 3}, 
+                    {7, 6, 5}}; 
+  
+    int puzzle[N][N] = { 
+                    {13, 2, 10, 3}, 
+                    {1, 12, 8, 4}, 
+                    {5, 0, 9, 6}, 
+                    {15, 14, 11, 7}, 
+                }; 
+  
+    int puzzle[N][N] = { 
+                    {6, 13, 7, 10}, 
+                    {8, 9, 11, 0}, 
+                    {15, 2, 12, 5}, 
+                    {14, 3, 1, 4}, 
+                }; 
+  
+  
+    int puzzle[N][N] = { 
+                    {3, 9, 1, 15}, 
+                    {14, 11, 4, 6}, 
+                    {13, 0, 10, 12}, 
+                    {2, 7, 8, 5}, 
+                }; 
+    
+  
+    isSolvable(puzzle)? cout << "Solvable": 
+                        cout << "Not Solvable"; 
+    return 0; 
+} 
+*/
